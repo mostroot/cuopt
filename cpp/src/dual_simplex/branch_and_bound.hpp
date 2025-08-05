@@ -35,7 +35,8 @@ enum class mip_status_t {
   TIME_LIMIT = 3,
   NODE_LIMIT = 4,
   NUMERICAL  = 5,
-  UNSET      = 6
+  UNSET      = 6,
+  ABORT      = 7
 };
 
 template <typename i_t, typename f_t>
@@ -47,8 +48,16 @@ class branch_and_bound_t {
   branch_and_bound_t(const user_problem_t<i_t, f_t>& user_problem,
                      const simplex_solver_settings_t<i_t, f_t>& solver_settings);
 
+  // Constructor with optional kill flag. If kill_flag is not nullptr, the solve will stop if *kill_flag is set to nonzero.
+  branch_and_bound_t(const user_problem_t<i_t, f_t>& user_problem,
+                     const simplex_solver_settings_t<i_t, f_t>& solver_settings,
+                     const int* kill_flag);
+
   // Set an initial guess based on the user_problem. This should be called before solve.
   void set_initial_guess(const std::vector<f_t>& user_guess) { guess = user_guess; }
+
+  // Set a kill flag to exit the solve early.
+  void set_kill_flag(const int* kill_flag_in) { this->kill_flag = kill_flag_in; }
 
   // Set a solution based on the user problem during the course of the solve
   void set_new_solution(const std::vector<f_t>& solution);
@@ -65,6 +74,7 @@ class branch_and_bound_t {
  private:
   const user_problem_t<i_t, f_t>& original_problem;
   const simplex_solver_settings_t<i_t, f_t> settings;
+  const int* kill_flag = nullptr;
 
   f_t start_time;
   std::vector<f_t> guess;

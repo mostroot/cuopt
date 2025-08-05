@@ -396,6 +396,19 @@ bool branch_and_bound_t<i_t, f_t>::repair_solution(
   return feasible;
 }
 
+
+template <typename i_t, typename f_t>
+branch_and_bound_t<i_t, f_t>::branch_and_bound_t(
+  const user_problem_t<i_t, f_t>& user_problem,
+  const simplex_solver_settings_t<i_t, f_t>& solver_settings,
+  const int* kill_flag_in)
+  : original_problem(user_problem), settings(solver_settings), original_lp(1, 1, 1)
+{
+  kill_flag = kill_flag_in;
+
+  branch_and_bound_t(user_problem, solver_settings);
+}
+
 template <typename i_t, typename f_t>
 branch_and_bound_t<i_t, f_t>::branch_and_bound_t(
   const user_problem_t<i_t, f_t>& user_problem,
@@ -584,9 +597,15 @@ mip_status_t branch_and_bound_t<i_t, f_t>::solve(mip_solution_t<i_t, f_t>& solut
 
   f_t total_lp_iters = 0.0;
   f_t last_log       = 0;
+
+
+
   while (gap > settings.absolute_mip_gap_tol &&
          relative_gap(get_upper_bound<f_t>(), lower_bound) > settings.relative_mip_gap_tol &&
-         heap.size() > 0) {
+         heap.size() > 0 &&
+         kill_flag == nullptr ? true: *kill_flag == 0) {
+
+    
     // Check if there are any solutions to repair
     std::vector<std::vector<f_t>> to_repair;
     global_variables::mutex_repair.lock();
@@ -818,6 +837,9 @@ mip_status_t branch_and_bound_t<i_t, f_t>::solve(mip_solution_t<i_t, f_t>& solut
       break;
     }
   }
+
+
+
   global_variables::mutex_branching.lock();
   global_variables::currently_branching = false;
   global_variables::mutex_branching.unlock();
@@ -836,6 +858,15 @@ mip_status_t branch_and_bound_t<i_t, f_t>::solve(mip_solution_t<i_t, f_t>& solut
     gap,
     compute_user_objective(original_lp, get_upper_bound<f_t>()),
     compute_user_objective(original_lp, lower_bound));
+
+
+  // Set the abort status if the kill flag was set, the flag may be overwritten by
+  // the optimal check or the infeasible check if we happen to be in that state when
+  // the kill flag was set.
+  if(kill_flag == nullptr ? true: *kill_flag == 0){
+    settings.log.printf("Branch and bound kill flag set. Stopping\n");
+    status = mip_status_t::ABORT;
+  }
 
   if (gap <= settings.absolute_mip_gap_tol ||
       relative_gap(get_upper_bound<f_t>(), lower_bound) <= settings.relative_mip_gap_tol) {
